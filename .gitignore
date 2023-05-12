@@ -1,0 +1,7 @@
+.env
+.demoenv
+app/
+test/
+dev/
+nginx/etc/private
+init/

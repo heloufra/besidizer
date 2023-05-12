@@ -1,0 +1,100 @@
+version: '3'
+
+services:
+  nginx:
+    container_name: nginx
+    hostname: nginx
+    image: nginx:1.15-alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx/etc/nginx:/etc/nginx
+      - ./nginx/etc/private/certbot/conf:/etc/letsencrypt
+      - ./nginx/etc/private/certbot/www:/var/www/certbot
+      - nginxv:/var/log/nginx
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    depends_on:
+      - test
+      - dev
+      - app
+    networks:
+      - appn
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/etc/private/certbot/conf:/etc/letsencrypt
+      - ./nginx/etc/private/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  
+  app:
+    hostname: app.beside
+    image: app.beside
+    build:
+        context: ./app/app
+    env_file:
+      - ./.env
+    networks:
+      - appn
+    depends_on:
+      - database
+
+  test:
+    hostname: test.beside
+    image: test.beside
+    build:
+        context: ./test/app
+    env_file:
+      - ./.demoenv
+    networks:
+      - appn
+    depends_on:
+      - database
+
+  dev:
+    hostname: dev.beside
+    image: dev.beside
+    build:
+        context: ./dev/app
+    env_file:
+      - ./.demoenv
+    networks:
+      - appn
+    depends_on:
+      - demo.database
+
+  demo.database:
+    image: mysql:8.0.31-debian
+    container_name: demo.database
+    hostname: demo.database
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    env_file:
+      - ./.demoenv
+    networks:
+      - appn
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d/
+      - demov:/var/lib/mysql
+
+  database:
+    image: mysql:8.0.31-debian
+    hostname: database
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    env_file:
+      - ./.env
+    networks:
+      - appn
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d/
+      - appv:/var/lib/mysql
+
+networks:
+  appn:
+
+volumes:
+  demov:
+  appv:
+  nginxv:
